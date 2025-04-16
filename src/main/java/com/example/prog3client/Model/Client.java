@@ -126,10 +126,6 @@ public class Client {
                         Email email = new Email(id, mittente, destinatari, oggetto, testoDecodificato, data);
                         email.setLetta(letta);
 
-                        System.out.println("[DEBUG] Testo codificato: " + testoCodificato);
-                        System.out.println("[DEBUG] Testo decodificato: " + testoDecodificato);
-
-
                         if (!inbox.getEmails().stream().anyMatch(e -> e.getId().equals(id))) {
                             inbox.aggiungiEmail(email);
                             if (!email.isLetta()) {

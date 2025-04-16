@@ -17,6 +17,7 @@ import javax.sound.sampled.Clip;
 import java.net.URL;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
@@ -100,8 +101,6 @@ public class InboxController {
             if (newValue != null) {
                 if (emailContentArea != null)
                     emailContentArea.setText(newValue.getTesto());
-                System.out.println("[DEBUG] Testo mostrato: " + newValue.getTesto());
-
                 // 👉 Marca come letta e aggiorna la vista
                 if (!newValue.isLetta()) {
                     newValue.setLetta(true);
@@ -167,6 +166,10 @@ public class InboxController {
                 dateConverter()
         );
         try{
+            if(connectionStatus.get() == false){
+                showAlert("Non sei connesso al Server!");
+                return;
+            }
             client.sendEmail(email);
             onSendAlert("Email inviata con successo!");sendToField.setText("");
             subjectField.setText("");
@@ -192,6 +195,36 @@ public class InboxController {
     }
 
     @FXML
+    protected void onReplyAllButtonClick() {
+        Email selectedEmail = getSelectedEmail();
+        if (selectedEmail != null) {
+            if (sendToField == null || subjectField == null || emailBodyField == null) {
+                createFields();
+            }
+
+            // Crea una copia modificabile dei destinatari
+            String userEmail = helloController.getEmailAddressField().getText();
+            List<String> allRecipients = new ArrayList<>(selectedEmail.getDestinatari());
+            allRecipients.add(selectedEmail.getMittente());
+            allRecipients.removeIf(email -> email.equalsIgnoreCase(userEmail));
+
+            // Imposta i campi
+            sendToField.setText(selectedEmail.getMittente() + "; " + String.join("; ", allRecipients));
+            subjectField.setText("Re: " + selectedEmail.getOggetto());
+            emailBodyField.setText("");
+
+            // Segna la mail come letta solo per l'utente corrente
+            if (!selectedEmail.isLetta()) {
+                selectedEmail.setLetta(true);
+                client.nowLetta(selectedEmail);
+                emailListView.refresh(); // Aggiorna la vista
+            }
+        } else {
+            showAlert("Seleziona un'email da rispondere.");
+        }
+    }
+
+    @FXML
     protected void onForwardButtonClick() {
         Email selectedEmail = getSelectedEmail();
         if (selectedEmail != null) {
@@ -210,6 +243,10 @@ public class InboxController {
     protected void onDeleteButtonClick() {
         Email selectedEmail = getSelectedEmail();
         if (selectedEmail != null) {
+            if(connectionStatus.get() == false){
+                showAlert("Non sei connesso al Server!");
+                return;
+            }
             client.deleteEmail(selectedEmail);
             inbox.rimuoviEmail(selectedEmail);
             emailContentArea.setText("");
