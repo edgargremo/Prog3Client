@@ -71,8 +71,9 @@ public class Client {
     // Invia un'email al server
     public void sendEmail(Email email) {
         try {
+            String testoCodificato = email.getTesto().replace("\n", "\\n");
             String request = "INVIA: " + email.getId() + "£" + email.getMittente() + "£" +
-                    String.join(";", email.getDestinatari()) + "£" + email.getOggetto() + "£" + email.getTesto() + "£" + email.getData() + "£" + email.isLetta();
+                    String.join(";", email.getDestinatari()) + "£" + email.getOggetto() + "£" + testoCodificato + "£" + email.getData() + "£" + email.isLetta();
             out.println(request);
         } catch (Exception e) {
             System.err.println("Errore nell'invio della mail: " + e.getMessage());
@@ -115,12 +116,19 @@ public class Client {
                         String mittente = parts[1];
                         List<String> destinatari = Arrays.asList(parts[2].split(";"));
                         String oggetto = parts[3];
-                        String testo = parts[4];
+
+                        String testoCodificato = parts[4];
+                        String testoDecodificato = testoCodificato.replace("\\n", "\n");
+
                         String data = parts[5];
                         boolean letta = Boolean.parseBoolean(parts[6]);
 
-                        Email email = new Email(id, mittente, destinatari, oggetto, testo, data);
+                        Email email = new Email(id, mittente, destinatari, oggetto, testoDecodificato, data);
                         email.setLetta(letta);
+
+                        System.out.println("[DEBUG] Testo codificato: " + testoCodificato);
+                        System.out.println("[DEBUG] Testo decodificato: " + testoDecodificato);
+
 
                         if (!inbox.getEmails().stream().anyMatch(e -> e.getId().equals(id))) {
                             inbox.aggiungiEmail(email);

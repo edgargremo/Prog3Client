@@ -59,15 +59,12 @@ public class InboxController {
     public void setInbox(Inbox inbox) {
         this.inbox = inbox;
         client.connectionMonitor(this);
-
         checkState();
-
         connectionStatus.addListener(observable -> checkState());
-//ciiao
         updateEmailList();
         client.receiveEmails(inbox, this);
     }
-                                                                            //modifica perchè posso usare client.isconnect
+    //modifica perchè posso usare client.isconnect
     private void checkState(){
         if (connectionStatusLabel != null && connectionStatus.get() == true) {
             connectionStatusLabel.setText("Connesso");
@@ -103,6 +100,7 @@ public class InboxController {
             if (newValue != null) {
                 if (emailContentArea != null)
                     emailContentArea.setText(newValue.getTesto());
+                System.out.println("[DEBUG] Testo mostrato: " + newValue.getTesto());
 
                 // 👉 Marca come letta e aggiorna la vista
                 if (!newValue.isLetta()) {
@@ -123,7 +121,6 @@ public class InboxController {
                     setStyle("");
                 } else {
                     setText(email.toString());
-
                     if (!email.isLetta()) {
                         setStyle("-fx-background-color: lightblue;");
                     } else {
