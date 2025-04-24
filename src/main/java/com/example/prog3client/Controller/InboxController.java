@@ -17,10 +17,7 @@ import javax.sound.sampled.Clip;
 import java.net.URL;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 
 public class InboxController {
 
@@ -198,22 +195,67 @@ public class InboxController {
     protected void onReplyAllButtonClick() {
         Email selectedEmail = getSelectedEmail();
         if (selectedEmail != null) {
-            if (sendToField == null || subjectField == null || emailBodyField == null) {
-                createFields();
+            // Assumiamo per ora che i campi siano iniettati correttamente e createFields() non serva
+            // if (sendToField == null || subjectField == null || emailBodyField == null) {
+            //     createFields();
+            // }
+
+            // Verifica dipendenze essenziali
+            if (helloController == null || helloController.getEmailAddressField() == null) {
+                showAlert("Errore interno: Impossibile determinare l'utente corrente.");
+                return;
             }
 
-            // Crea una copia modificabile dei destinatari
-            String userEmail = helloController.getEmailAddressField().getText();
-            List<String> allRecipients = new ArrayList<>(selectedEmail.getDestinatari());
-            allRecipients.add(selectedEmail.getMittente());
-            allRecipients.removeIf(email -> email.equalsIgnoreCase(userEmail));
+            if (sendToField == null || subjectField == null || emailBodyField == null) {
+               createFields();
+            }
 
-            // Imposta i campi
-            sendToField.setText(selectedEmail.getMittente() + "; " + String.join("; ", allRecipients));
+
+            // --- CORREZIONE LOGICA DESTINATARI ---
+            String currentUserEmail = helloController.getEmailAddressField().getText().trim();
+            String originalSender = selectedEmail.getMittente().trim();
+
+            // Usiamo un Set per gestire unicità ed esclusioni
+            Set<String> replyAllRecipientsSet = new HashSet<>();
+
+            // 1. Aggiungi il mittente originale (se non è l'utente corrente)
+            if (!originalSender.isEmpty() && !originalSender.equalsIgnoreCase(currentUserEmail)) {
+                replyAllRecipientsSet.add(originalSender);
+            }
+
+            // 2. Aggiungi tutti i destinatari originali (escludendo l'utente corrente)
+            if (selectedEmail.getDestinatari() != null) {
+                for (String recipient : selectedEmail.getDestinatari()) {
+                    String trimmedRecipient = recipient.trim();
+                    // Aggiungi solo se non è vuoto e non è l'utente corrente
+                    if (!trimmedRecipient.isEmpty() && !trimmedRecipient.equalsIgnoreCase(currentUserEmail)) {
+                        replyAllRecipientsSet.add(trimmedRecipient);
+                    }
+                }
+            }
+
+            // 3. Imposta il campo "A:"
+            if (replyAllRecipientsSet.isEmpty()) {
+                // Se non ci sono altri destinatari, rispondi solo al mittente originale
+                if (!originalSender.isEmpty()) {
+                    sendToField.setText(originalSender);
+                } else {
+                    // Caso strano: email senza mittente o solo a se stesso?
+                    showAlert("Impossibile determinare i destinatari per 'Rispondi a Tutti'.");
+                    sendToField.clear();
+                }
+            } else {
+                // Unisci gli indirizzi unici trovati con ";"
+                sendToField.setText(String.join(";", replyAllRecipientsSet));
+            }
+            // --- FINE CORREZIONE LOGICA DESTINATARI ---
+
+
+            // Manteniamo per ora il resto del codice problematico per affrontarlo dopo
             subjectField.setText("Re: " + selectedEmail.getOggetto());
-            emailBodyField.setText("");
+            emailBodyField.setText(""); // Problema: corpo vuoto
 
-            // Segna la mail come letta solo per l'utente corrente
+            // Problema: marcatura come letta inappropriata
             if (!selectedEmail.isLetta()) {
                 selectedEmail.setLetta(true);
                 client.nowLetta(selectedEmail);
