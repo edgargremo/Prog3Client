@@ -5,7 +5,8 @@ import com.example.prog3client.Controller.InboxController;
 import com.example.prog3client.HelloApplication;
 import javafx.application.Platform;
 import javafx.scene.control.Alert;
-
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.io.*;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
@@ -24,6 +25,8 @@ public class Client {
     private boolean connectedFlag = false;
     private volatile long lastPongTimestamp = System.currentTimeMillis();
     private Thread monitorThread;
+    private final ConcurrentHashMap<String, Boolean> emailCheckResults = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, CountDownLatch> emailCheckLatches = new ConcurrentHashMap<>();
 
     public Client(String serverAddress, int serverPort) {
         this.serverAddress = serverAddress;
@@ -96,6 +99,16 @@ public class Client {
 
                     if ("PONG".equals(response)) {
                         lastPongTimestamp = System.currentTimeMillis();
+                        continue;
+                    }
+
+                    if ("NO!".equals(response)) {
+                        // Gestisci la risposta NO per il controllo email
+                        emailCheckResults.put("CHECK_FAILED", false);
+                        CountDownLatch latch = emailCheckLatches.get("CHECK_FAILED");
+                        if (latch != null) {
+                            latch.countDown();
+                        }
                         continue;
                     }
 
@@ -178,7 +191,6 @@ public class Client {
         try { if (in != null) in.close(); } catch (IOException e) { /* ignore */ }
         try { if (socket != null && !socket.isClosed()) socket.close(); } catch (IOException e) { /* ignore */ }
 
-        // Resetta riferimenti
         out = null;
         in = null;
         socket = null;
@@ -256,4 +268,27 @@ public class Client {
         monitorThread.start();
     }
 
+    public boolean checkEmail(String email) {
+        try {
+            // Prepara un latch per attendere la risposta
+            CountDownLatch latch = new CountDownLatch(1);
+            emailCheckLatches.put("CHECK_FAILED", latch);
+
+            // Invia la richiesta al server
+            out.println("CHECK: " + email);
+
+            // Attendi la risposta
+            latch.await();
+
+            // Recupera il risultato
+            return emailCheckResults.getOrDefault("CHECK_FAILED", false);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        } finally {
+            // Pulisci le strutture dati
+            emailCheckLatches.remove("CHECK_FAILED");
+            emailCheckResults.remove("CHECK_FAILED");
+        }
+    }
 }

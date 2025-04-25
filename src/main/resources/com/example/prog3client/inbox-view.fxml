@@ -39,7 +39,7 @@
             </padding>
             <children>
                 <Button mnemonicParsing="false" onAction="#onSendButtonClick"
-                        style="-fx-background-color: #000000; -fx-text-fill: white;" text="Send"/>
+                        style="-fx-background-color: #007bff; -fx-text-fill: white;" text="Send"/>
                 <Button mnemonicParsing="false" onAction="#onReplyButtonClick"
                         style="-fx-background-color: #000000; -fx-text-fill: white;" text="Reply"/>
                 <Button mnemonicParsing="false" onAction="#onReplyAllButtonClick"
@@ -47,7 +47,7 @@
                 <Button mnemonicParsing="false" onAction="#onForwardButtonClick"
                         style="-fx-background-color: #000000; -fx-text-fill: white;" text="Forward"/>
                 <Button mnemonicParsing="false" onAction="#onDeleteButtonClick"
-                        style="-fx-background-color: #000000; -fx-text-fill: white;" text="Delete"/>
+                        style="-fx-background-color: #ff0d09; -fx-text-fill: white;" text="Delete"/>
                 <Label fx:id="connectionStatusLabel" text="Non connesso" />
             </children>
         </HBox>

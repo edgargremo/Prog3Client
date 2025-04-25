@@ -18,6 +18,8 @@ import java.net.URL;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class InboxController {
 
@@ -137,7 +139,6 @@ public class InboxController {
 
     @FXML
     protected void onSendButtonClick() {
-        //se i campi sono null, allora li creiamo
         if (sendToField == null || subjectField == null || emailBodyField == null) {
             createFields();
             return;
@@ -150,10 +151,17 @@ public class InboxController {
             showAlert("Tutti i campi sono obbligatori!");
             return;
         }
+
         if(helloController == null){
             showAlert("Errore nella connessione!");
             return;
         }
+
+        if(!AreValidEmails(to) || !AreEmailsExisting(to)){
+            showAlert("Uno o più destinatari non validi!");
+            return;
+        }
+
         Email email = new Email(
                 UUID.randomUUID().toString(),
                 helloController.getEmailAddressField().getText(),
@@ -366,5 +374,23 @@ public class InboxController {
 
     public void updateConnectionStatus(boolean stato){
             connectionStatus.set(stato);
+    }
+
+    private boolean AreValidEmails(String email) {
+        String emailRegex = "^([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,})(\\s*;\\s*[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,})*$";
+        Pattern pattern = Pattern.compile(emailRegex);
+        Matcher matcher = pattern.matcher(email);
+        return matcher.matches();
+    }
+
+    public boolean AreEmailsExisting(String emails){
+        String[] stringOfMail = emails.split("\\s*;\\s*");
+        for (String email : stringOfMail) {
+            if(email.isEmpty()) return false;
+            else{
+                if(!client.checkEmail(email)) return false;
+            }
+        }
+        return true;
     }
 }
