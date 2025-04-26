@@ -1,11 +1,11 @@
 package com.example.prog3client.Model;
-
 import com.example.prog3client.Controller.HelloController;
 import com.example.prog3client.Controller.InboxController;
 import com.example.prog3client.HelloApplication;
 import javafx.application.Platform;
 import javafx.scene.control.Alert;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.io.*;
 import java.net.Socket;
@@ -27,6 +27,7 @@ public class Client {
     private Thread monitorThread;
     private final ConcurrentHashMap<String, Boolean> emailCheckResults = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, CountDownLatch> emailCheckLatches = new ConcurrentHashMap<>();
+    private final ConcurrentLinkedQueue<String> pendingEmailChecks = new ConcurrentLinkedQueue<>();
 
     public Client(String serverAddress, int serverPort) {
         this.serverAddress = serverAddress;
@@ -36,16 +37,6 @@ public class Client {
     public void setUserEmail(String userEmail) {
         this.userEmail = userEmail;
     }
-
-    public PrintWriter getOut() {
-        return out;
-    }
-
-
-    public boolean isConnected() {
-        return connectedFlag;
-    }
-
 
     public boolean connect() throws IOException {
         try {
@@ -70,8 +61,6 @@ public class Client {
         }
     }
 
-
-    // Invia un'email al server
     public void sendEmail(Email email) {
         try {
             String testoCodificato = email.getTesto().replace("\n", "\\n");
@@ -83,7 +72,6 @@ public class Client {
         }
     }
 
-    // Riceve le email dal server
     public void receiveEmails(Inbox inbox, InboxController inboxController) {
         receiveThread = new Thread(() -> {
             try {
@@ -91,9 +79,7 @@ public class Client {
                 System.out.println("[DEBUG] Inizio ricezione email...");
                 out.println("RICEZIONE ");
                 out.flush();
-
-                connectionMonitor(inboxController); // 👈 Avviamo il monitor qui
-
+                connectionMonitor(inboxController);
                 while ((response = in.readLine()) != null) {
                     System.out.println("[DEBUG] Risposta ricevuta dal server: " + response);
 
@@ -102,12 +88,15 @@ public class Client {
                         continue;
                     }
 
-                    if ("NO!".equals(response)) {
-                        // Gestisci la risposta NO per il controllo email
-                        emailCheckResults.put("CHECK_FAILED", false);
-                        CountDownLatch latch = emailCheckLatches.get("CHECK_FAILED");
-                        if (latch != null) {
-                            latch.countDown();
+                    if ("SI!".equals(response) || "NO!".equals(response)) {
+                        String email = pendingEmailChecks.poll();
+                        if (email != null) {
+                            boolean isValid = "SI!".equals(response);
+                            emailCheckResults.put(email, isValid);
+                            CountDownLatch latch = emailCheckLatches.get(email);
+                            if (latch != null) {
+                                latch.countDown();
+                            }
                         }
                         continue;
                     }
@@ -122,23 +111,18 @@ public class Client {
                         break;
                     }
 
-                    // Gestione email
                     String[] parts = response.split("£", -1);
                     if (parts.length >= 7) {
                         String id = parts[0].trim();
                         String mittente = parts[1];
                         List<String> destinatari = Arrays.asList(parts[2].split(";"));
                         String oggetto = parts[3];
-
                         String testoCodificato = parts[4];
                         String testoDecodificato = testoCodificato.replace("\\n", "\n");
-
                         String data = parts[5];
                         boolean letta = Boolean.parseBoolean(parts[6]);
-
                         Email email = new Email(id, mittente, destinatari, oggetto, testoDecodificato, data);
                         email.setLetta(letta);
-
                         if (!inbox.getEmails().stream().anyMatch(e -> e.getId().equals(id))) {
                             inbox.aggiungiEmail(email);
                             if (!email.isLetta()) {
@@ -150,7 +134,6 @@ public class Client {
                                     .findFirst()
                                     .ifPresent(e -> e.setLetta(letta));
                         }
-
                         Platform.runLater(inboxController::updateEmailList);
                     } else {
                         System.out.println("[DEBUG] Formato non valido: " + parts.length);
@@ -162,14 +145,12 @@ public class Client {
                     connectedFlag = false;
                     Platform.runLater(() -> inboxController.updateConnectionStatus(false));
                 }
-                monitorThread.interrupt(); // 👈 Interrompiamo il monitor
-
+                monitorThread.interrupt();
             }
         });
         receiveThread.setDaemon(true);
         receiveThread.start();
     }
-
 
     public void disconnect() {
         if (!connectedFlag && socket == null) return; // Già disconnesso o mai connesso
@@ -196,7 +177,6 @@ public class Client {
         socket = null;
         System.out.println("Disconnessione completata."); // Log
     }
-
 
     public void nowLetta(Email email) {
         String request = ("LETTA " + email.getId());
@@ -269,26 +249,23 @@ public class Client {
     }
 
     public boolean checkEmail(String email) {
+        CountDownLatch latch = new CountDownLatch(1);
+        emailCheckLatches.put(email, latch);
+        pendingEmailChecks.add(email);
         try {
-            // Prepara un latch per attendere la risposta
-            CountDownLatch latch = new CountDownLatch(1);
-            emailCheckLatches.put("CHECK_FAILED", latch);
-
-            // Invia la richiesta al server
             out.println("CHECK: " + email);
-
-            // Attendi la risposta
-            latch.await();
-
-            // Recupera il risultato
-            return emailCheckResults.getOrDefault("CHECK_FAILED", false);
+            boolean receivedResponse = latch.await(5, java.util.concurrent.TimeUnit.SECONDS);
+            if (!receivedResponse) {
+                System.err.println("[DEBUG] Timeout per la verifica dell'email: " + email);
+                return false;
+            }
+            return emailCheckResults.getOrDefault(email, false);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return false;
         } finally {
-            // Pulisci le strutture dati
-            emailCheckLatches.remove("CHECK_FAILED");
-            emailCheckResults.remove("CHECK_FAILED");
+            emailCheckLatches.remove(email);
+            emailCheckResults.remove(email);
         }
     }
 }
