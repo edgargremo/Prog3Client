@@ -162,6 +162,11 @@ public class InboxController {
             return;
         }
 
+        if(thereIsTheSameAccount(to)){
+            showAlert("Non puoi inviare la mail due volte allo stesso Account!");
+            return;
+        }
+
         Email email = new Email(
                 UUID.randomUUID().toString(),
                 helloController.getEmailAddressField().getText(),
@@ -260,7 +265,7 @@ public class InboxController {
 
 
             // Manteniamo per ora il resto del codice problematico per affrontarlo dopo
-            subjectField.setText("Re: " + selectedEmail.getOggetto());
+            subjectField.setText("Re: ");
             emailBodyField.setText(""); // Problema: corpo vuoto
 
             // Problema: marcatura come letta inappropriata
@@ -283,7 +288,7 @@ public class InboxController {
             }
             sendToField.setText("");
             subjectField.setText("Fwd: ");
-            emailBodyField.setText("Inoltrato da:" + selectedEmail.getMittente() + "\n\n");
+            emailBodyField.setText("Inoltrato da: " + selectedEmail.getMittente() + "\n\n");
         } else {
             showAlert("Seleziona un'email da inoltrare.");
         }
@@ -392,5 +397,16 @@ public class InboxController {
             }
         }
         return true;
+    }
+
+    public boolean thereIsTheSameAccount(String emails) {
+        String[] emailArray = emails.split("\\s*;\\s*");
+        Set<String> emailSet = new HashSet<>();
+        for (String email : emailArray) {
+            if (!emailSet.add(email)) {
+                return true;
+            }
+        }
+        return false;
     }
 }
