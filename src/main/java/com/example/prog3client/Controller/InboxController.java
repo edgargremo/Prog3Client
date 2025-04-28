@@ -163,7 +163,7 @@ public class InboxController {
         }
 
         if(thereIsTheSameAccount(to)){
-            showAlert("Non puoi inviare la mail due volte allo stesso Account!");
+            showAlert("Non puoi inviare la mail due o più volte allo stesso Account!");
             return;
         }
 

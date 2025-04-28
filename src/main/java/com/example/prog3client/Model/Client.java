@@ -10,6 +10,7 @@ import java.util.concurrent.CountDownLatch;
 import java.io.*;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
@@ -22,12 +23,13 @@ public class Client {
     private PrintWriter out;
     private String userEmail;
     private Thread receiveThread;
+    private Thread monitorThread;
     private boolean connectedFlag = false;
     private volatile long lastPongTimestamp = System.currentTimeMillis();
-    private Thread monitorThread;
     private final ConcurrentHashMap<String, Boolean> emailCheckResults = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, CountDownLatch> emailCheckLatches = new ConcurrentHashMap<>();
     private final ConcurrentLinkedQueue<String> pendingEmailChecks = new ConcurrentLinkedQueue<>();
+    private final AtomicBoolean isAttemptingReconnect = new AtomicBoolean(false);
 
     public Client(String serverAddress, int serverPort) {
         this.serverAddress = serverAddress;
@@ -49,7 +51,7 @@ public class Client {
             out.println("VERIFICA:" + userEmail);
             String response = in.readLine();
             if (!"OK".equals(response)) {
-                disconnect();
+                //disconnect();
                 return false;
             }
             connectedFlag = true;
@@ -175,6 +177,8 @@ public class Client {
         out = null;
         in = null;
         socket = null;
+
+        isAttemptingReconnect.set(false);
         System.out.println("Disconnessione completata."); // Log
     }
 
@@ -190,62 +194,70 @@ public class Client {
 
     public void connectionMonitor(InboxController inboxController) {
         monitorThread = new Thread(() -> {
-            // Continua solo se il flag generale è true E non siamo interrotti
             while (connectedFlag && !Thread.currentThread().isInterrupted()) {
                 try {
                     if (out == null || out.checkError()) {
-                        System.out.println("[Monitor] PrintWriter non valido, uscita.");
-                        throw new IOException("PrintWriter error");
+                        throw new IOException("Errore nel PrintWriter");
                     }
                     out.println("PING ");
-                    // out.flush(); // PrintWriter con autoFlush=true non dovrebbe richiederlo
+                    Thread.sleep(5000);
 
-                    Thread.sleep(5000); // Attendi 5 secondi
-
-                    // Controlla di nuovo il flag prima del calcolo, potrebbe essere cambiato durante sleep
                     if (!connectedFlag) break;
 
                     long currentTime = System.currentTimeMillis();
-                    boolean timestampConnected = (currentTime - lastPongTimestamp) < 10000; // Timeout PONG 10 sec
-
-                    if (!timestampConnected) {
-                        // PONG non ricevuto in tempo
-                        System.out.println("[Monitor] Timeout PONG rilevato.");
-                        if (connectedFlag) { // Solo se non è già stato impostato a false da receiveEmails
-                            connectedFlag = false; // Imposta il flag condiviso
-                            Platform.runLater(() -> inboxController.updateConnectionStatus(false)); // Aggiorna UI
-                        }
-                        break; // Esci dal ciclo del monitor
-                    } else {
-                        // Timestamp OK. Aggiorna la UI a true SOLO se il flag generale è ancora true.
-                        // Questo previene l'aggiornamento a true se receiveEmails ha appena impostato a false.
-                        if (connectedFlag) {
-                            Platform.runLater(() -> inboxController.updateConnectionStatus(true));
-                        }
+                    if ((currentTime - lastPongTimestamp) >= 10000) {
+                        throw new IOException("Timeout PONG");
                     }
-
-                } catch (InterruptedException e) {
-                    System.out.println("[Monitor] Thread interrotto.");
-                    Thread.currentThread().interrupt(); // Re-imposta lo stato interrotto
-                    break; // Esci dal ciclo
-                } catch (Exception e) { // Cattura errori di invio PING etc.
-                    System.out.println("[Monitor] Errore: " + e.getMessage());
-                    if (connectedFlag) { // Se l'errore accade mentre connessi
-                        connectedFlag = false;
-                        Platform.runLater(() -> inboxController.updateConnectionStatus(false));
-                    }
-                    break; // Esci dal ciclo in caso di errore
+                } catch (Exception e) {
+                    System.err.println("Connessione persa: " + e.getMessage());
+                    connectedFlag = false;
+                    Platform.runLater(() -> inboxController.updateConnectionStatus(false));
+                    attemptReconnect(inboxController); // Avvia la riconnessione
+                    break;
                 }
-            } // Fine while
-
-            // Assicura che lo stato finale sia 'non connesso' quando il monitor esce
-            if (connectedFlag) { // Se per qualche motivo usciamo ma il flag n                 connectedFlag = false;
-                Platform.runLater(() -> inboxController.updateConnectionStatus(false));
             }
-            System.out.println("[Monitor] Thread terminato.");
         });
         monitorThread.setDaemon(true);
         monitorThread.start();
+    }
+
+    private void attemptReconnect(InboxController inboxController) {
+        if (!isAttemptingReconnect.compareAndSet(false, true)) {
+            return; // Evita tentativi multipli
+        }
+
+        new Thread(() -> {
+            int delay = 5000; // Iniziale 5 secondi
+            final int maxDelay = 60000; // Massimo 60 secondi
+
+            while (!connectedFlag) {
+                try {
+                    System.out.println("Tentativo di riconnessione...");
+                    Platform.runLater(() -> inboxController.updateConnectionStatus(false)); // Stato: Non connesso
+
+                    if (connect()) {
+                        System.out.println("Riconnessione riuscita.");
+                        Platform.runLater(() -> inboxController.updateConnectionStatus(true)); // Stato: Connesso
+                        receiveEmails(inboxController.getInbox(), inboxController); // Riavvia il thread di ricezione
+                        connectionMonitor(inboxController); // Riavvia il monitor
+                        break; // Esci dal ciclo di riconnessione
+                    }
+                } catch (IOException e) {
+                    System.err.println("Riconnessione fallita: " + e.getMessage());
+                }
+
+                try {
+                    Thread.sleep(delay);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break; // Interrompi il tentativo di riconnessione
+                }
+
+                delay = Math.min(delay * 2, maxDelay); // Incrementa il ritardo (exponential backoff)
+            }
+
+            isAttemptingReconnect.set(false); // Fine tentativi
+        }).start();
     }
 
     public boolean checkEmail(String email) {

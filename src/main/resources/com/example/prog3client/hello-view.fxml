@@ -16,7 +16,7 @@
 
     <TextField fx:id="emailAddressField" promptText="Inserisci il tuo indirizzo email" style="-fx-font-size: 14px; -fx-padding: 5; -fx-border-color: #cccccc; -fx-border-width: 1; -fx-border-radius: 5;"/>
 
-    <Button text="Connetti" onAction="#onConnectButtonClick" style="-fx-font-size: 14px; -fx-padding: 10 20; -fx-background-color: #007bff; -fx-text-fill: white; -fx-border-radius: 5;"/>
+    <Button text="Connect" onAction="#onConnectButtonClick" style="-fx-font-size: 14px; -fx-padding: 10 20; -fx-background-color: #007bff; -fx-text-fill: white; -fx-border-radius: 5;"/>
 
     <Label fx:id="connectionStatusLabel" text="Stato: Non connesso" style="-fx-font-size: 16px; -fx-text-fill: #333333;"/>
 </VBox>
