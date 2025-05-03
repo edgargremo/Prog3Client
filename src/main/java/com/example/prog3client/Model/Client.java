@@ -1,19 +1,14 @@
 package com.example.prog3client.Model;
-import com.example.prog3client.Controller.HelloController;
 import com.example.prog3client.Controller.InboxController;
-import com.example.prog3client.HelloApplication;
 import javafx.application.Platform;
-import javafx.scene.control.Alert;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.io.*;
 import java.net.Socket;
-import java.net.SocketTimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.Arrays;
 import java.util.List;
-import java.util.UUID;
 
 public class Client {
     private String serverAddress;
@@ -44,14 +39,13 @@ public class Client {
         try {
             System.out.println("Tentativo di connessione al server: " + serverAddress + ":" + serverPort);
             socket = new Socket(serverAddress, serverPort);
-            socket.setSoTimeout(5000);
+            socket.setSoTimeout(10000);
             in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             out = new PrintWriter(socket.getOutputStream(), true);
             System.out.println("Connessione al server stabilita con successo.");
             out.println("VERIFICA:" + userEmail);
             String response = in.readLine();
             if (!"OK".equals(response)) {
-                //disconnect();
                 return false;
             }
             connectedFlag = true;
@@ -78,18 +72,16 @@ public class Client {
         receiveThread = new Thread(() -> {
             try {
                 String response;
-                System.out.println("[DEBUG] Inizio ricezione email...");
+                System.out.println("Inizio ricezione email / informazioni dal Server ");
                 out.println("RICEZIONE ");
                 out.flush();
-                connectionMonitor(inboxController);
+                //connectionMonitor(inboxController);
                 while ((response = in.readLine()) != null) {
-                    System.out.println("[DEBUG] Risposta ricevuta dal server: " + response);
-
+                    System.out.println("Risposta ricevuta dal server: " + response);
                     if ("PONG".equals(response)) {
                         lastPongTimestamp = System.currentTimeMillis();
                         continue;
                     }
-
                     if ("SI!".equals(response) || "NO!".equals(response)) {
                         String email = pendingEmailChecks.poll();
                         if (email != null) {
@@ -102,17 +94,14 @@ public class Client {
                         }
                         continue;
                     }
-
                     if ("VUOTA".equals(response)) {
                         out.println("VUOTA! ");
                         Platform.runLater(inboxController::updateEmailList);
                         continue;
                     }
-
                     if ("END".equals(response)) {
                         break;
                     }
-
                     String[] parts = response.split("£", -1);
                     if (parts.length >= 7) {
                         String id = parts[0].trim();
@@ -138,7 +127,7 @@ public class Client {
                         }
                         Platform.runLater(inboxController::updateEmailList);
                     } else {
-                        System.out.println("[DEBUG] Formato non valido: " + parts.length);
+                        System.out.println("Formato non valido: " + parts.length);
                     }
                 }
             } catch (IOException e) {
@@ -152,34 +141,6 @@ public class Client {
         });
         receiveThread.setDaemon(true);
         receiveThread.start();
-    }
-
-    public void disconnect() {
-        if (!connectedFlag && socket == null) return; // Già disconnesso o mai connesso
-
-        connectedFlag = false; // Imposta il flag per primo!
-
-        System.out.println("Disconnessione in corso..."); // Log
-
-        // Interrompi i thread
-        if (receiveThread != null) {
-            receiveThread.interrupt();
-        }
-        if (monitorThread != null) {
-            monitorThread.interrupt();
-        }
-
-        // Chiudi risorse (ignora errori qui)
-        try { if (out != null) out.close(); } catch (Exception e) { /* ignore */ }
-        try { if (in != null) in.close(); } catch (IOException e) { /* ignore */ }
-        try { if (socket != null && !socket.isClosed()) socket.close(); } catch (IOException e) { /* ignore */ }
-
-        out = null;
-        in = null;
-        socket = null;
-
-        isAttemptingReconnect.set(false);
-        System.out.println("Disconnessione completata."); // Log
     }
 
     public void nowLetta(Email email) {
@@ -201,9 +162,7 @@ public class Client {
                     }
                     out.println("PING ");
                     Thread.sleep(5000);
-
                     if (!connectedFlag) break;
-
                     long currentTime = System.currentTimeMillis();
                     if ((currentTime - lastPongTimestamp) >= 10000) {
                         throw new IOException("Timeout PONG");
@@ -212,7 +171,7 @@ public class Client {
                     System.err.println("Connessione persa: " + e.getMessage());
                     connectedFlag = false;
                     Platform.runLater(() -> inboxController.updateConnectionStatus(false));
-                    attemptReconnect(inboxController); // Avvia la riconnessione
+                    attemptReconnect(inboxController);
                     break;
                 }
             }
@@ -223,40 +182,34 @@ public class Client {
 
     private void attemptReconnect(InboxController inboxController) {
         if (!isAttemptingReconnect.compareAndSet(false, true)) {
-            return; // Evita tentativi multipli
+            return;
         }
-
         new Thread(() -> {
-            int delay = 5000; // Iniziale 5 secondi
-            final int maxDelay = 60000; // Massimo 60 secondi
-
+            int delay = 5000;
+            final int maxDelay = 60000;
             while (!connectedFlag) {
                 try {
-                    System.out.println("Tentativo di riconnessione...");
-                    Platform.runLater(() -> inboxController.updateConnectionStatus(false)); // Stato: Non connesso
-
+                    System.out.println("Tentativo di riconnessione ");
+                    Platform.runLater(() -> inboxController.updateConnectionStatus(false));
                     if (connect()) {
-                        System.out.println("Riconnessione riuscita.");
-                        Platform.runLater(() -> inboxController.updateConnectionStatus(true)); // Stato: Connesso
-                        receiveEmails(inboxController.getInbox(), inboxController); // Riavvia il thread di ricezione
-                        connectionMonitor(inboxController); // Riavvia il monitor
-                        break; // Esci dal ciclo di riconnessione
+                        System.out.println("Riconnessione riuscita ");
+                        Platform.runLater(() -> inboxController.updateConnectionStatus(true));
+                        receiveEmails(inboxController.getInbox(), inboxController);
+                        connectionMonitor(inboxController);
+                        break;
                     }
                 } catch (IOException e) {
                     System.err.println("Riconnessione fallita: " + e.getMessage());
                 }
-
                 try {
                     Thread.sleep(delay);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
-                    break; // Interrompi il tentativo di riconnessione
+                    break;
                 }
-
-                delay = Math.min(delay * 2, maxDelay); // Incrementa il ritardo (exponential backoff)
+                delay = Math.min(delay * 2, maxDelay);
             }
-
-            isAttemptingReconnect.set(false); // Fine tentativi
+            isAttemptingReconnect.set(false);
         }).start();
     }
 
@@ -268,7 +221,7 @@ public class Client {
             out.println("CHECK: " + email);
             boolean receivedResponse = latch.await(5, java.util.concurrent.TimeUnit.SECONDS);
             if (!receivedResponse) {
-                System.err.println("[DEBUG] Timeout per la verifica dell'email: " + email);
+                System.err.println("Timeout per la verifica dell'email: " + email);
                 return false;
             }
             return emailCheckResults.getOrDefault(email, false);

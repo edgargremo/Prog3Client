@@ -1,5 +1,4 @@
 package com.example.prog3client.Controller;
-
 import com.example.prog3client.Model.Client;
 import com.example.prog3client.Model.Email;
 import com.example.prog3client.Model.Inbox;
@@ -10,7 +9,6 @@ import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.scene.layout.VBox;
-
 import javax.sound.sampled.AudioInputStream;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.Clip;
@@ -49,9 +47,6 @@ public class InboxController {
     @FXML
     private VBox newEmailVBox;
 
-    @FXML
-    private Button sendButton;
-
     private Inbox inbox;
 
     private HelloController helloController;
@@ -64,7 +59,7 @@ public class InboxController {
         updateEmailList();
         client.receiveEmails(inbox, this);
     }
-    //modifica perchè posso usare client.isconnect
+
     private void checkState(){
         if (connectionStatusLabel != null && connectionStatus.get() == true) {
             connectionStatusLabel.setText("Connesso");
@@ -72,7 +67,6 @@ public class InboxController {
         } else {
             connectionStatusLabel.setText("Non connesso");
             connectionStatusLabel.setStyle("-fx-text-fill: red; -fx-font-weight: bold;");
-            //System.err.println("Attenzione: connectionStatusLabel non è stato iniettato correttamente dall'FXML.");
         }
     }
 
@@ -80,36 +74,28 @@ public class InboxController {
         return inbox;
     }
 
-
     public void setHelloController(HelloController helloController) {
         this.helloController = helloController;
     }
 
     public void updateEmailList() {
         if (inbox == null) return;
-
         List<Email> mails = inbox.getEmails();
         Collections.reverse(mails);
         ObservableList<Email> emails = FXCollections.observableArrayList(mails);
-
         if (emailListView == null) return;
-
         emailListView.setItems(emails);
-
         emailListView.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, newValue) -> {
             if (newValue != null) {
                 if (emailContentArea != null)
                     emailContentArea.setText(newValue.getTesto());
-                // 👉 Marca come letta e aggiorna la vista
                 if (!newValue.isLetta()) {
                     newValue.setLetta(true);
                     client.nowLetta(newValue);
-                    emailListView.refresh(); // aggiorna lo sfondo nella cell factory
+                    emailListView.refresh();
                 }
             }
         });
-
-        // 👉 Imposta la CellFactory qui se non è già stata impostata altrove
         emailListView.setCellFactory(listView -> new ListCell<Email>() {
             @Override
             protected void updateItem(Email email, boolean empty) {
@@ -129,7 +115,6 @@ public class InboxController {
         });
     }
 
-
     public Email getSelectedEmail() {
         if (emailListView != null) {
             return emailListView.getSelectionModel().getSelectedItem();
@@ -146,27 +131,22 @@ public class InboxController {
         String to = sendToField.getText();
         String subject = subjectField.getText();
         String body = emailBodyField.getText();
-
         if (to.isEmpty() || subject.isEmpty() || body.isEmpty()) {
             showAlert("Tutti i campi sono obbligatori!");
             return;
         }
-
         if(helloController == null){
             showAlert("Errore nella connessione!");
             return;
         }
-
         if(!AreValidEmails(to) || !AreEmailsExisting(to)){
             showAlert("Uno o più destinatari non validi!");
             return;
         }
-
         if(thereIsTheSameAccount(to)){
             showAlert("Non puoi inviare la mail due o più volte allo stesso Account!");
             return;
         }
-
         Email email = new Email(
                 UUID.randomUUID().toString(),
                 helloController.getEmailAddressField().getText(),
@@ -181,7 +161,8 @@ public class InboxController {
                 return;
             }
             client.sendEmail(email);
-            onSendAlert("Email inviata con successo!");sendToField.setText("");
+            onSendAlert("Email inviata con successo!");
+            sendToField.setText("");
             subjectField.setText("");
             emailBodyField.setText("");
         } catch (Exception e) {
@@ -208,71 +189,43 @@ public class InboxController {
     protected void onReplyAllButtonClick() {
         Email selectedEmail = getSelectedEmail();
         if (selectedEmail != null) {
-            // Assumiamo per ora che i campi siano iniettati correttamente e createFields() non serva
-            // if (sendToField == null || subjectField == null || emailBodyField == null) {
-            //     createFields();
-            // }
-
-            // Verifica dipendenze essenziali
             if (helloController == null || helloController.getEmailAddressField() == null) {
                 showAlert("Errore interno: Impossibile determinare l'utente corrente.");
                 return;
             }
-
             if (sendToField == null || subjectField == null || emailBodyField == null) {
                createFields();
             }
-
-
-            // --- CORREZIONE LOGICA DESTINATARI ---
             String currentUserEmail = helloController.getEmailAddressField().getText().trim();
             String originalSender = selectedEmail.getMittente().trim();
-
-            // Usiamo un Set per gestire unicità ed esclusioni
             Set<String> replyAllRecipientsSet = new HashSet<>();
-
-            // 1. Aggiungi il mittente originale (se non è l'utente corrente)
             if (!originalSender.isEmpty() && !originalSender.equalsIgnoreCase(currentUserEmail)) {
                 replyAllRecipientsSet.add(originalSender);
             }
-
-            // 2. Aggiungi tutti i destinatari originali (escludendo l'utente corrente)
             if (selectedEmail.getDestinatari() != null) {
                 for (String recipient : selectedEmail.getDestinatari()) {
                     String trimmedRecipient = recipient.trim();
-                    // Aggiungi solo se non è vuoto e non è l'utente corrente
                     if (!trimmedRecipient.isEmpty() && !trimmedRecipient.equalsIgnoreCase(currentUserEmail)) {
                         replyAllRecipientsSet.add(trimmedRecipient);
                     }
                 }
             }
-
-            // 3. Imposta il campo "A:"
             if (replyAllRecipientsSet.isEmpty()) {
-                // Se non ci sono altri destinatari, rispondi solo al mittente originale
                 if (!originalSender.isEmpty()) {
                     sendToField.setText(originalSender);
                 } else {
-                    // Caso strano: email senza mittente o solo a se stesso?
                     showAlert("Impossibile determinare i destinatari per 'Rispondi a Tutti'.");
                     sendToField.clear();
                 }
             } else {
-                // Unisci gli indirizzi unici trovati con ";"
                 sendToField.setText(String.join(";", replyAllRecipientsSet));
             }
-            // --- FINE CORREZIONE LOGICA DESTINATARI ---
-
-
-            // Manteniamo per ora il resto del codice problematico per affrontarlo dopo
             subjectField.setText("Re: ");
-            emailBodyField.setText(""); // Problema: corpo vuoto
-
-            // Problema: marcatura come letta inappropriata
+            emailBodyField.setText("");
             if (!selectedEmail.isLetta()) {
                 selectedEmail.setLetta(true);
                 client.nowLetta(selectedEmail);
-                emailListView.refresh(); // Aggiorna la vista
+                emailListView.refresh();
             }
         } else {
             showAlert("Seleziona un'email da rispondere.");
@@ -298,7 +251,7 @@ public class InboxController {
     protected void onDeleteButtonClick() {
         Email selectedEmail = getSelectedEmail();
         if (selectedEmail != null) {
-            if(connectionStatus.get() == false){
+            if(!connectionStatus.get()){
                 showAlert("Non sei connesso al Server!");
                 return;
             }
@@ -319,7 +272,6 @@ public class InboxController {
     }
 
     private void onSendAlert(String message) {
-        //suono
         Alert alert = new Alert(Alert.AlertType.INFORMATION);
         alert.setContentText(message);
         alert.showAndWait();
@@ -330,21 +282,13 @@ public class InboxController {
     }
 
     private void createFields() {
-        //creiamo i campi
         sendToField = new TextField();
         sendToField.setPromptText("A:");
         subjectField = new TextField();
         subjectField.setPromptText("Oggetto:");
         emailBodyField = new TextArea();
         emailBodyField.setPromptText("Testo:");
-        //aggiungiamo i campi al vbox
         newEmailVBox.getChildren().addAll(sendToField, subjectField, emailBodyField);
-    }
-
-    public void enableSendButton() {
-        if (sendButton != null) {
-            sendButton.setDisable(false);
-        }
     }
 
     private String dateConverter() {
