@@ -82,7 +82,7 @@ public class InboxController {
         if (inbox == null) return;
         List<Email> mails = inbox.getEmails();
         Collections.reverse(mails);
-        ObservableList<Email> emails = FXCollections.observableArrayList(mails);
+        ObservableList<Email> emails = FXCollections.observableArrayList(mails); //lista osservabile per la GUI
         if (emailListView == null) return;
         emailListView.setItems(emails);
         emailListView.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, newValue) -> {
@@ -92,7 +92,7 @@ public class InboxController {
                 if (!newValue.isLetta()) {
                     newValue.setLetta(true);
                     client.nowLetta(newValue);
-                    emailListView.refresh();
+                    emailListView.refresh(); //aggiornamento grafico
                 }
             }
         });
@@ -128,6 +128,10 @@ public class InboxController {
             createFields();
             return;
         }
+        if(!connectionStatus.get()){
+            showAlert("Non sei connesso al Server!");
+            return;
+        }
         String to = sendToField.getText();
         String subject = subjectField.getText();
         String body = emailBodyField.getText();
@@ -156,10 +160,6 @@ public class InboxController {
                 dateConverter()
         );
         try{
-            if(connectionStatus.get() == false){
-                showAlert("Non sei connesso al Server!");
-                return;
-            }
             client.sendEmail(email);
             onSendAlert("Email inviata con successo!");
             sendToField.setText("");

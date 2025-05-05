@@ -39,7 +39,7 @@ public class Client {
         try {
             System.out.println("Tentativo di connessione al server: " + serverAddress + ":" + serverPort);
             socket = new Socket(serverAddress, serverPort);
-            socket.setSoTimeout(10000);
+            socket.setSoTimeout(10000); // tempo massimo che il socket attende
             in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             out = new PrintWriter(socket.getOutputStream(), true);
             System.out.println("Connessione al server stabilita con successo.");
@@ -115,17 +115,17 @@ public class Client {
                         Email email = new Email(id, mittente, destinatari, oggetto, testoDecodificato, data);
                         email.setLetta(letta);
                         if (!inbox.getEmails().stream().anyMatch(e -> e.getId().equals(id))) {
-                            inbox.aggiungiEmail(email);
+                            inbox.aggiungiEmail(email); //nessuna mail matcha l'id quindi aggiungo all'inbox
                             if (!email.isLetta()) {
                                 inboxController.playNotificationSound();
                             }
-                        } else {
+                        } else { //se la mail esiste già potrebbe essere utile aggiornare lo stato di lettura
                             inbox.getEmails().stream()
                                     .filter(e -> e.getId().equals(id))
                                     .findFirst()
                                     .ifPresent(e -> e.setLetta(letta));
                         }
-                        Platform.runLater(inboxController::updateEmailList);
+                        Platform.runLater(inboxController::updateEmailList); //quando può, javaFX esegue il thread di gestione della GUI
                     } else {
                         System.out.println("Formato non valido: " + parts.length);
                     }
