@@ -69,6 +69,9 @@ public class Client {
     }
 
     public void receiveEmails(Inbox inbox, InboxController inboxController) {
+        if (receiveThread != null && receiveThread.isAlive()) {
+            receiveThread.interrupt();
+        }
         receiveThread = new Thread(() -> {
             try {
                 String response;
@@ -99,9 +102,11 @@ public class Client {
                         Platform.runLater(inboxController::updateEmailList);
                         continue;
                     }
+                    /*
                     if ("END".equals(response)) {
                         break;
                     }
+                     */
                     String[] parts = response.split("£", -1);
                     if (parts.length >= 7) {
                         String id = parts[0].trim();
