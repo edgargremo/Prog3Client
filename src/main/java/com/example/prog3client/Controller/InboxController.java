@@ -85,30 +85,30 @@ public class InboxController {
         ObservableList<Email> emails = FXCollections.observableArrayList(mails); //lista osservabile per la GUI
         if (emailListView == null) return;
         emailListView.setItems(emails);
-        emailListView.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, newValue) -> {
+        emailListView.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, newValue) -> { //listener di click
             if (newValue != null) {
                 if (emailContentArea != null)
-                    emailContentArea.setText(newValue.getTesto());
+                    emailContentArea.setText(newValue.getTesto()); //contenuto mail
                 if (!newValue.isLetta()) {
                     newValue.setLetta(true);
                     client.nowLetta(newValue);
-                    emailListView.refresh(); //aggiornamento grafico
+                    emailListView.refresh(); //forza aggiornamento grafico
                 }
             }
         });
-        emailListView.setCellFactory(listView -> new ListCell<Email>() {
+        emailListView.setCellFactory(listView -> new ListCell<Email>() { //aspetto grafico di ogni riga
             @Override
             protected void updateItem(Email email, boolean empty) {
-                super.updateItem(email, empty);
-                if (empty || email == null) {
+                super.updateItem(email, empty); //mantiene il comportamento da "cella"
+                if (empty || email == null) { //se la mail in quella cella non esiste o è null
                     setText(null);
                     setStyle("");
                 } else {
                     setText(email.toString());
                     if (!email.isLetta()) {
-                        setStyle("-fx-background-color: lightblue;");
+                        setStyle("-fx-background-color: lightblue;");  //se la mail in quella cella è non letta
                     } else {
-                        setStyle("");
+                        setStyle(""); //se la mail in quella cella esiste ed è letta
                     }
                 }
             }

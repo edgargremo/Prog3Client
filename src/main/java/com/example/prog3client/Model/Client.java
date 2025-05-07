@@ -59,7 +59,7 @@ public class Client {
 
     public void sendEmail(Email email) {
         try {
-            String testoCodificato = email.getTesto().replace("\n", "\\n");
+            String testoCodificato = email.getTesto().replace("\n", "\\n").replace("£", "+-*[]");
             String request = "INVIA: " + email.getId() + "£" + email.getMittente() + "£" +
                     String.join(";", email.getDestinatari()) + "£" + email.getOggetto() + "£" + testoCodificato + "£" + email.getData() + "£" + email.isLetta();
             out.println(request);
@@ -69,9 +69,6 @@ public class Client {
     }
 
     public void receiveEmails(Inbox inbox, InboxController inboxController) {
-        if (receiveThread != null && receiveThread.isAlive()) {
-            receiveThread.interrupt();
-        }
         receiveThread = new Thread(() -> {
             try {
                 String response;
@@ -86,13 +83,13 @@ public class Client {
                         continue;
                     }
                     if ("SI!".equals(response) || "NO!".equals(response)) {
-                        String email = pendingEmailChecks.poll();
+                        String email = pendingEmailChecks.poll(); //estrae la mail dalla lista
                         if (email != null) {
                             boolean isValid = "SI!".equals(response);
-                            emailCheckResults.put(email, isValid);
-                            CountDownLatch latch = emailCheckLatches.get(email);
+                            emailCheckResults.put(email, isValid); //mail valida
+                            CountDownLatch latch = emailCheckLatches.get(email); //prende la campanellina della mail corrente pronto a suonarla
                             if (latch != null) {
-                                latch.countDown();
+                                latch.countDown(); //suona la campanellina
                             }
                         }
                         continue;
@@ -114,7 +111,7 @@ public class Client {
                         List<String> destinatari = Arrays.asList(parts[2].split(";"));
                         String oggetto = parts[3];
                         String testoCodificato = parts[4];
-                        String testoDecodificato = testoCodificato.replace("\\n", "\n");
+                        String testoDecodificato = testoCodificato.replace("\\n", "\n").replace("+-*[]", "£");
                         String data = parts[5];
                         boolean letta = Boolean.parseBoolean(parts[6]);
                         Email email = new Email(id, mittente, destinatari, oggetto, testoDecodificato, data);
@@ -137,7 +134,7 @@ public class Client {
                 }
             } catch (IOException e) {
                 System.err.println("Errore nella ricezione delle email: " + e.getMessage());
-                if(connectedFlag){
+                if (connectedFlag) {
                     connectedFlag = false;
                     Platform.runLater(() -> inboxController.updateConnectionStatus(false));
                 }
@@ -191,11 +188,11 @@ public class Client {
         }
         new Thread(() -> {
             int delay = 5000;
-            final int maxDelay = 60000;
+            final int maxDelay = 20000;
             while (!connectedFlag) {
                 try {
                     System.out.println("Tentativo di riconnessione ");
-                    Platform.runLater(() -> inboxController.updateConnectionStatus(false));
+                    //Platform.runLater(() -> inboxController.updateConnectionStatus(false));
                     if (connect()) {
                         System.out.println("Riconnessione riuscita ");
                         Platform.runLater(() -> inboxController.updateConnectionStatus(true));
@@ -207,7 +204,7 @@ public class Client {
                     System.err.println("Riconnessione fallita: " + e.getMessage());
                 }
                 try {
-                    Thread.sleep(delay);
+                    Thread.sleep(delay); //dorme per tot s in base al delay
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     break;
@@ -219,9 +216,9 @@ public class Client {
     }
 
     public boolean checkEmail(String email) {
-        CountDownLatch latch = new CountDownLatch(1);
-        emailCheckLatches.put(email, latch);
-        pendingEmailChecks.add(email);
+        CountDownLatch latch = new CountDownLatch(1); //aspetta la risposta di countdownn dal Server nel metodo receiveEmails()
+        emailCheckLatches.put(email, latch); //campanello per queste mail
+        pendingEmailChecks.add(email); //aggiungiamo alla coda
         try {
             out.println("CHECK: " + email);
             boolean receivedResponse = latch.await(5, java.util.concurrent.TimeUnit.SECONDS);
@@ -234,8 +231,8 @@ public class Client {
             Thread.currentThread().interrupt();
             return false;
         } finally {
-            emailCheckLatches.remove(email);
-            emailCheckResults.remove(email);
+            emailCheckLatches.remove(email); //pulisce la struttura dati
+            emailCheckResults.remove(email); //pulisce la struttura dati
         }
     }
 }
