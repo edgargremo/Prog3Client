@@ -61,7 +61,7 @@ public class InboxController {
     }
 
     private void checkState(){
-        if (connectionStatusLabel != null && connectionStatus.get() == true) {
+        if (connectionStatusLabel != null && connectionStatus.get()) {
             connectionStatusLabel.setText("Connesso");
             connectionStatusLabel.setStyle("-fx-text-fill: green; -fx-font-weight: bold;");
         } else {
@@ -178,7 +178,7 @@ public class InboxController {
                 createFields();
             }
             sendToField.setText(selectedEmail.getMittente().trim());
-            subjectField.setText("Re: ");
+            subjectField.setText("Re: " + selectedEmail.getOggetto());
             emailBodyField.setText("");
         } else {
             showAlert("Seleziona un'email da rispondere.");
@@ -220,13 +220,13 @@ public class InboxController {
             } else {
                 sendToField.setText(String.join(";", replyAllRecipientsSet));
             }
-            subjectField.setText("Re: ");
+            subjectField.setText("Re: " + selectedEmail.getOggetto());
             emailBodyField.setText("");
-            if (!selectedEmail.isLetta()) {
+            /*if (!selectedEmail.isLetta()) {
                 selectedEmail.setLetta(true);
                 client.nowLetta(selectedEmail);
                 emailListView.refresh();
-            }
+            }*/
         } else {
             showAlert("Seleziona un'email da rispondere.");
         }
@@ -240,7 +240,7 @@ public class InboxController {
                 createFields();
             }
             sendToField.setText("");
-            subjectField.setText("Fwd: ");
+            subjectField.setText("Fwd: " + selectedEmail.getOggetto());
             emailBodyField.setText("Inoltrato da: " + selectedEmail.getMittente() + "\n\n");
         } else {
             showAlert("Seleziona un'email da inoltrare.");

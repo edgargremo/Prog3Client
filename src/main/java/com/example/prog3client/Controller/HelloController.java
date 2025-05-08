@@ -44,8 +44,7 @@ public class HelloController {
         }
         client.setUserEmail(userEmail);
         try {
-            boolean mailEsiste = client.connect();
-            if (!mailEsiste) {
+            if (!client.connect()) {
                 updateConnectionStatus("Email non esistente");
                 return;
             }

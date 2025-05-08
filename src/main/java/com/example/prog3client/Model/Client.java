@@ -95,9 +95,20 @@ public class Client {
                         continue;
                     }
                     if ("VUOTA".equals(response)) {
-                        out.println("VUOTA! ");
-                        Platform.runLater(inboxController::updateEmailList);
+                            out.println("VUOTA! ");
+                            Platform.runLater(inboxController::updateEmailList);
                         continue;
+                    }
+                    if(response.startsWith("EMAIL_CANCELLATA ")){
+                        String idEmail = response.substring("EMAIL_CANCELLATA ".length());
+                        inbox.removeEmailById(idEmail);
+                        Platform.runLater(inboxController::updateEmailList);
+                    }
+                    if(response.startsWith("EMAIL_LETTA ")){
+                        String idEmail = response.substring("EMAIL_LETTA ".length());
+                        Email email = inbox.getEmailbyId(idEmail);
+                        email.setLetta(true);
+                        Platform.runLater(inboxController::updateEmailList);
                     }
                     /*
                     if ("END".equals(response)) {
@@ -171,8 +182,8 @@ public class Client {
                     }
                 } catch (Exception e) {
                     System.err.println("Connessione persa: " + e.getMessage());
-                    connectedFlag = false;
-                    Platform.runLater(() -> inboxController.updateConnectionStatus(false));
+                    //connectedFlag = false;
+                    //Platform.runLater(() -> inboxController.updateConnectionStatus(false));
                     attemptReconnect(inboxController);
                     break;
                 }
@@ -193,7 +204,7 @@ public class Client {
                 try {
                     System.out.println("Tentativo di riconnessione ");
                     //Platform.runLater(() -> inboxController.updateConnectionStatus(false));
-                    if (connect()) {
+                    if (connect()) { //qui imposto la connessione = false per il TIMEOUT pong
                         System.out.println("Riconnessione riuscita ");
                         Platform.runLater(() -> inboxController.updateConnectionStatus(true));
                         receiveEmails(inboxController.getInbox(), inboxController);
